@@ -1,0 +1,11 @@
+Package: WorldR
+Type: Package
+Title:  wrapper to World, the vocoder system
+Version: 1.0
+Date: 2016-05-30
+Author: Akinori Ito
+Maintainer: Akinori Ito <aito@fw.ipsj.or.jp>
+Description: R wrapper to World, the vocoder system.
+License: BSD
+Imports: Rcpp (>= 0.12.5), tuneR
+LinkingTo: Rcpp

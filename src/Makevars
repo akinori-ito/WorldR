@@ -1,0 +1,2 @@
+PKG_CPPFLAGS=-IWorld/src
+PKG_LIBS=-LWorld/build -lworld

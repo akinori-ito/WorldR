@@ -1,0 +1,3 @@
+useDynLib(WorldR)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
