@@ -5,14 +5,16 @@
 
 using namespace Rcpp;
 
-// my_sqrt
-NumericMatrix my_sqrt(NumericMatrix x);
-RcppExport SEXP WorldR_my_sqrt(SEXP xSEXP) {
+// worldAnalysis
+List worldAnalysis(NumericVector& wave, double frameshift, int fs);
+RcppExport SEXP WorldR_worldAnalysis(SEXP waveSEXP, SEXP frameshiftSEXP, SEXP fsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< NumericMatrix >::type x(xSEXP);
-    __result = Rcpp::wrap(my_sqrt(x));
+    Rcpp::traits::input_parameter< NumericVector& >::type wave(waveSEXP);
+    Rcpp::traits::input_parameter< double >::type frameshift(frameshiftSEXP);
+    Rcpp::traits::input_parameter< int >::type fs(fsSEXP);
+    __result = Rcpp::wrap(worldAnalysis(wave, frameshift, fs));
     return __result;
 END_RCPP
 }
