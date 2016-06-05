@@ -11,14 +11,15 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List worldAnalysis_(NumericVector& wave, double frameshift, int fs) {
+List worldAnalysis_(NumericVector& wave, double frameshift, int fs,
+                    double f0floor, double allowed_range) {
 
   DioOption d_option = {0};
   InitializeDioOption(&d_option);
   d_option.frame_period = frameshift;
   d_option.speed = 1;
-  d_option.f0_floor = 71.0;
-  d_option.allowed_range = 0.1;
+  d_option.f0_floor = f0floor;
+  d_option.allowed_range = allowed_range;
 
   // F0 analysis
   int x_length = wave.size();
@@ -44,7 +45,7 @@ List worldAnalysis_(NumericVector& wave, double frameshift, int fs) {
   CheapTrickOption c_option = {0};
   InitializeCheapTrickOption(&c_option);
   c_option.q1 = -0.15;
-  c_option.f0_floor = 71.0;
+  c_option.f0_floor = f0floor;
 
   int fftsize = GetFFTSizeForCheapTrick(fs, &c_option);
   int specsize = fftsize/2+1;
