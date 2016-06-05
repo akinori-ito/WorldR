@@ -11,7 +11,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List worldAnalysis(NumericVector& wave, double frameshift, int fs) {
+List worldAnalysis_(NumericVector& wave, double frameshift, int fs) {
 
   DioOption d_option = {0};
   InitializeDioOption(&d_option);
@@ -99,3 +99,49 @@ List worldAnalysis(NumericVector& wave, double frameshift, int fs) {
 
   return ret;
 }
+
+// [[Rcpp::export]]
+NumericVector worldSynthesis_(List world) {
+  double frameshift = as<double>(world["frameshift"]);
+  int fs = as<int>(world["samp.rate"]);
+  int length = as<int>(world["length"]);
+  NumericVector Rf0 = world["F0"];
+  NumericMatrix Rspec = world["spec"];
+  NumericMatrix Raperio = world["aperiodicity"];
+
+  double *F0 = new double[length];
+  double **spectro = new double*[length];
+  double **aperio = new double*[length];
+  int specsize = Rspec.ncol();
+  for (int i = 0; i < length; i++) {
+    spectro[i] = new double[specsize];
+    aperio[i] = new double[specsize];
+    F0[i] = Rf0(i);
+    for (int j = 0; j < specsize; j++) {
+      spectro[i][j] = Rspec(i,j);
+      aperio[i][j] = Raperio(i,j);
+    }
+  }
+
+  int y_length = static_cast<int>((length-1)*frameshift/1000.0*fs)+1;
+  double *y = new double[y_length];
+  int fft_size = (specsize-1)*2;
+
+  Synthesis(F0,length,spectro,aperio,fft_size,frameshift, fs,
+            y_length, y);
+
+  NumericVector Ry(y_length);
+  for (int i = 0; i < y_length; i++)
+    Ry(i) = y[i];
+
+  delete[] F0;
+  for (int i = 0; i < length; i++) {
+    delete[] spectro[i];
+    delete[] aperio[i];
+  }
+  delete[] spectro;
+  delete[] aperio;
+  delete[] y;
+  return Ry;
+}
+
