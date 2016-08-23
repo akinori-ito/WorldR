@@ -20,6 +20,22 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// worldAnalysis_f0
+List worldAnalysis_f0(NumericVector& wave, NumericVector& Rf0, double frameshift, int fs, double f0floor, double allowed_range);
+RcppExport SEXP WorldR_worldAnalysis_f0(SEXP waveSEXP, SEXP Rf0SEXP, SEXP frameshiftSEXP, SEXP fsSEXP, SEXP f0floorSEXP, SEXP allowed_rangeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< NumericVector& >::type wave(waveSEXP);
+    Rcpp::traits::input_parameter< NumericVector& >::type Rf0(Rf0SEXP);
+    Rcpp::traits::input_parameter< double >::type frameshift(frameshiftSEXP);
+    Rcpp::traits::input_parameter< int >::type fs(fsSEXP);
+    Rcpp::traits::input_parameter< double >::type f0floor(f0floorSEXP);
+    Rcpp::traits::input_parameter< double >::type allowed_range(allowed_rangeSEXP);
+    __result = Rcpp::wrap(worldAnalysis_f0(wave, Rf0, frameshift, fs, f0floor, allowed_range));
+    return __result;
+END_RCPP
+}
 // worldSynthesis_
 NumericVector worldSynthesis_(List world);
 RcppExport SEXP WorldR_worldSynthesis_(SEXP worldSEXP) {

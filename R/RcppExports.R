@@ -5,6 +5,10 @@ worldAnalysis_ <- function(wave, frameshift, fs, f0floor, allowed_range) {
     .Call('WorldR_worldAnalysis_', PACKAGE = 'WorldR', wave, frameshift, fs, f0floor, allowed_range)
 }
 
+worldAnalysis_f0 <- function(wave, Rf0, frameshift, fs, f0floor, allowed_range) {
+    .Call('WorldR_worldAnalysis_f0', PACKAGE = 'WorldR', wave, Rf0, frameshift, fs, f0floor, allowed_range)
+}
+
 worldSynthesis_ <- function(world) {
     .Call('WorldR_worldSynthesis_', PACKAGE = 'WorldR', world)
 }

@@ -1,7 +1,12 @@
 library(tuneR)
 
-world.analysis <- function(w,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
-  r <- worldAnalysis_(w@left,frameshift,w@samp.rate,f0floor,allowed_range)
+world.analysis <- function(w,f0=NULL,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
+  if (is.null(f0)) {
+    r <- worldAnalysis_(w@left,frameshift,w@samp.rate,f0floor,allowed_range)
+  } else {
+    r <- worldAnalysis_f0(w@left,f0,frameshift,w@samp.rate,f0floor,allowed_range)
+
+  }
   r$class <- "World"
   return(r)
 }
