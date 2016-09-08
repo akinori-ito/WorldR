@@ -8,6 +8,7 @@
 #include "world/stonemask.h"
 
 #include <math.h>
+#include <stdio.h>
 
 #include "world/common.h"
 #include "world/constantnumbers.h"
@@ -100,8 +101,12 @@ static double FixF0(const double *power_spectrum, const double *numerator_i,
   int index;
   for (int i = 0; i < number_of_harmonics; ++i) {
     index = matlab_round(f0_initial * fft_size / fs * (i + 1));
-    fixp_list[i] = static_cast<double>(index) * fs / fft_size +
-      numerator_i[index] / power_spectrum[index] * fs / 2.0 / world::kPi;
+    if (power_spectrum[i] == 0) {
+        fixp_list[i] = 0.0;
+    } else {
+        fixp_list[i] = static_cast<double>(index) * fs / fft_size +
+        numerator_i[index] / power_spectrum[index] * fs / 2.0 / world::kPi;
+    }
     power_list[i] = sqrt(power_spectrum[index]);
   }
   double denominator = 0.0;
@@ -147,7 +152,7 @@ static double GetMeanF0(const double *x, int x_length, int fs,
   int *index_raw = new int[base_time_length];
   double *main_window = new double[base_time_length];
   double *diff_window = new double[base_time_length];
-
+  
   GetIndexRaw(current_time, base_time, base_time_length, fs, index_raw);
   GetMainWindow(current_time, index_raw, base_time_length, fs,
       window_length_in_time, main_window);
@@ -163,7 +168,6 @@ static double GetMeanF0(const double *x, int x_length, int fs,
     power_spectrum[j] = main_spectrum[j][0] * main_spectrum[j][0] +
       main_spectrum[j][1] * main_spectrum[j][1];
   }
-
   double tentative_f0 = GetTentativeF0(power_spectrum, numerator_i,
       fft_size, fs, f0_initial);
 

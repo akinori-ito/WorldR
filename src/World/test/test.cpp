@@ -133,12 +133,24 @@ void F0Estimation(double *x, int x_length, WorldParameters *world_parameters) {
   Dio(x, x_length, world_parameters->fs, &option, world_parameters->time_axis,
       world_parameters->f0);
   printf("DIO: %d [msec]\n", timeGetTime() - elapsed_time);
+  {
+      FILE *out = fopen("zF0-0.txt","w");
+      for (int i = 0; i < world_parameters->f0_length; i++)
+        fprintf(out,"%g\n",world_parameters->f0[i]);
+      fclose(out);
+  }
 
   // StoneMask is carried out to improve the estimation performance.
   elapsed_time = timeGetTime();
   StoneMask(x, x_length, world_parameters->fs, world_parameters->time_axis,
       world_parameters->f0, world_parameters->f0_length, refined_f0);
   printf("StoneMask: %d [msec]\n", timeGetTime() - elapsed_time);
+  {
+      FILE *out = fopen("zF0-1.txt","w");
+      for (int i = 0; i < world_parameters->f0_length; i++)
+        fprintf(out,"%g\n",refined_f0[i]);
+      fclose(out);
+  }
 
   for (int i = 0; i < world_parameters->f0_length; ++i)
     world_parameters->f0[i] = refined_f0[i];
