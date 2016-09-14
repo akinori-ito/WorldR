@@ -143,6 +143,42 @@ List worldAnalysis_f0(NumericVector& wave, NumericVector& Rf0,
   return ret;
 }
 
+// [[Rcpp::export]]
+NumericVector worldF0Estimation(NumericVector& wave, double frameshift, int fs,
+                    double f0floor, double allowed_range) {
+
+  DioOption d_option = {0};
+  InitializeDioOption(&d_option);
+  d_option.frame_period = frameshift;
+  d_option.speed = 1;
+  d_option.f0_floor = f0floor;
+  d_option.allowed_range = allowed_range;
+
+  // F0 analysis
+  int x_length = wave.size();
+  double *x = new double[x_length];
+  for (int i = 0; i < x_length; i++)
+    x[i] = wave(i);
+
+  int length = GetSamplesForDIO(fs,x_length,frameshift); //Frame length
+  double *f0 = new double[length];
+  double *time_axis = new double[length];
+  double *refined = new double[length];
+
+  Dio(x, x_length, fs, &d_option, time_axis,f0);
+  StoneMask(x, x_length, fs, time_axis, f0,length, refined);
+  NumericVector Rf0(length);
+  for (int i = 0; i < length; i++) {
+    Rf0(i) = refined[i];
+  }
+  delete[] refined;
+  delete[] x;
+  delete[] f0;
+  delete[] time_axis;
+
+  return Rf0;
+}
+
 
 // [[Rcpp::export]]
 NumericVector worldSynthesis_(List world) {

@@ -11,6 +11,10 @@ world.analysis <- function(w,f0=NULL,frameshift=5.0,f0floor=71.0,allowed_range=0
   return(r)
 }
 
+world.f0 <- function(w,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
+  return(worldF0Estimation(w@left,frameshift,w@samp.rate,f0floor,allowed_range))
+}
+
 world.synthesis <- function(world,normalize=FALSE) {
   w <- worldSynthesis_(world)
   mx <- max(abs(w))

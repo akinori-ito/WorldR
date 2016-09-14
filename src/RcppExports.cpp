@@ -36,6 +36,21 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// worldF0Estimation
+NumericVector worldF0Estimation(NumericVector& wave, double frameshift, int fs, double f0floor, double allowed_range);
+RcppExport SEXP WorldR_worldF0Estimation(SEXP waveSEXP, SEXP frameshiftSEXP, SEXP fsSEXP, SEXP f0floorSEXP, SEXP allowed_rangeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< NumericVector& >::type wave(waveSEXP);
+    Rcpp::traits::input_parameter< double >::type frameshift(frameshiftSEXP);
+    Rcpp::traits::input_parameter< int >::type fs(fsSEXP);
+    Rcpp::traits::input_parameter< double >::type f0floor(f0floorSEXP);
+    Rcpp::traits::input_parameter< double >::type allowed_range(allowed_rangeSEXP);
+    __result = Rcpp::wrap(worldF0Estimation(wave, frameshift, fs, f0floor, allowed_range));
+    return __result;
+END_RCPP
+}
 // worldSynthesis_
 NumericVector worldSynthesis_(List world);
 RcppExport SEXP WorldR_worldSynthesis_(SEXP worldSEXP) {
