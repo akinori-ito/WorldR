@@ -1,6 +1,6 @@
 # WorldR: An R wrapper of World 
 
-## OVerview
+## Overview
 WorldR is a wrapper of World, the speech analysis and synthesis system.
 - [World development page on github](https://github.com/mmorise/World)
 
