@@ -3,4 +3,4 @@ PKG_LIBS=-LWorld/build -lworld
 $(SHLIB): World/build/libworld.a
 
 World/build/libworld.a:
-	@(cd World; make CXX=$(CXX) LINK=$(CXX))
+	@(cd World; make)

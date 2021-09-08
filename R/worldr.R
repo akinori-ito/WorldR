@@ -1,4 +1,4 @@
-library(tuneR)
+#library(tuneR)
 
 world.analysis <- function(w,f0=NULL,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
   if (is.null(f0)) {
