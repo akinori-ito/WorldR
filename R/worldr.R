@@ -17,6 +17,7 @@ world.f0 <- function(w,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
 
 world.synthesis <- function(world,normalize=FALSE) {
   w <- worldSynthesis_(world)
+  w[is.nan(w)] <- 0
   mx <- max(abs(w))
   if (normalize | mx > 32767) {
     # do normalize
