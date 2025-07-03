@@ -9,4 +9,6 @@ Description: R wrapper to World, the vocoder system.
 License: BSD
 Imports: Rcpp (>= 0.12.5), tuneR
 LinkingTo: Rcpp
-RoxygenNote: 7.1.1
+RoxygenNote: 7.3.2
+Roxygen: list(markdown=TRUE)
+Encoding: UTF-8

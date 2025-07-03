@@ -9,8 +9,12 @@ worldAnalysis_f0 <- function(wave, Rf0, frameshift, fs, f0floor, allowed_range) 
     .Call('_WorldR_worldAnalysis_f0', PACKAGE = 'WorldR', wave, Rf0, frameshift, fs, f0floor, allowed_range)
 }
 
-worldF0Estimation <- function(wave, frameshift, fs, f0floor, allowed_range) {
-    .Call('_WorldR_worldF0Estimation', PACKAGE = 'WorldR', wave, frameshift, fs, f0floor, allowed_range)
+worldF0Estimation_dio <- function(wave, frameshift, fs, f0floor, allowed_range) {
+    .Call('_WorldR_worldF0Estimation_dio', PACKAGE = 'WorldR', wave, frameshift, fs, f0floor, allowed_range)
+}
+
+worldF0Estimation_harvest <- function(wave, frameshift, fs, f0floor, f0ceil) {
+    .Call('_WorldR_worldF0Estimation_harvest', PACKAGE = 'WorldR', wave, frameshift, fs, f0floor, f0ceil)
 }
 
 worldSynthesis_ <- function(world) {

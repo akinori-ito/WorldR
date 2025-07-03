@@ -1,5 +1,22 @@
 #library(tuneR)
 
+#' @title Analyze speech signal using World
+#' @description \code{world.analysis()} analyzes the input speech signal into F0, spectrum and aperiodicity.
+#'\code{world.analysis()} analyzes the given \code{\link{Wave}} object into F0, spectrum and aperiodicity. If the Wave object has two or more channels, only the first channel (i.e. the left channel) will be used.
+#'If \code{f0} is specified, \code{world.analysis()} uses the given F0 for spectral analysis. Otherwise, it calculates F0 using Dio and StoneMask algorithms.
+#' @param wave A \code{\link{Wave}} object to analyze.
+#' @param f0 A vector of F0 sequence. If NULL, the F0 is calculated in the function.
+#' @param frameshift Value of frame shift given in ms.
+#' @param f0floor The lower limit of F0.
+#' @param allowed_range The allowed range.
+#' @return The return value is a list, having the following members:
+#' - samp.rate: The sampling rate (Hz).
+#' - frameshift: The frame period (ms).
+#' - length: The number of frames.
+#' - F0: A vector of F0 values (Hz).
+#' - spec: A matrix of spectrum. The [i,j]-th element denotes the j-th frequency element of the i-th frame.
+#' - aperiodicity}{A matrix of aperiodicity, having the same dimension as the spectrum.
+#' @export
 world.analysis <- function(w,f0=NULL,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
   if (is.null(f0)) {
     r <- worldAnalysis_(w@left,frameshift,w@samp.rate,f0floor,allowed_range)
@@ -11,10 +28,32 @@ world.analysis <- function(w,f0=NULL,frameshift=5.0,f0floor=71.0,allowed_range=0
   return(r)
 }
 
-world.f0 <- function(w,frameshift=5.0,f0floor=71.0,allowed_range=0.1) {
-  return(worldF0Estimation(w@left,frameshift,w@samp.rate,f0floor,allowed_range))
+#' @title Extract fundamental frequencies (F0) using World
+#' @description `world.f0` extracts the fundamental frequency (F0) sequence using the World's standard F0 extraction algorithms, Dio and StoneMask.
+#' If the Wave object has two or more channels, only the first channel (i.e. the left channel) will be used.
+#' @param wave A Wave object to analyze.
+#' @param f0 A vector of F0 sequence. If NULL, the F0 is calculated in the function.
+#' @param frameshift Value of frame shift given in ms.
+#' @param f0floor The lower limit of F0 (Hz).
+#' @param allowed_range The allowed range
+#' @return A vector of F0 sequence.
+#' @export
+world.f0 <- function(w,frameshift=5.0,f0floor=71.0,f0ceil=800.0,allowed_range=0.1,method="dio") {
+  if (method == "dio") {
+    return(worldF0Estimation_dio(w@left,frameshift,w@samp.rate,f0floor,allowed_range))
+  } else if (method == "harvest") {
+    return(worldF0Estimation_dio(w@left,frameshift,w@samp.rate,f0floor,f0ceil))
+  } else {
+    stop("world.f0: unknown method ",method)
+  }
 }
 
+#' @title Synthesize speech signal using World
+#' @description `world.synthesis` synthesizes the speech signal from the F0, spectrum and aperiodicity obtained by `world.analysis()`.
+#' @param world A list calculated by `world.analysis()`.
+#' @param normalize if TRUE, the output wave is normalized so that the maximum amplitude to be 32767.
+#' @return An Wave object, having one channel, PCM format. The sampling rate of the output will be the same as that of the input signal to the `world.analysis()`.
+#' @export
 world.synthesis <- function(world,normalize=FALSE) {
   w <- worldSynthesis_(world)
   w[is.nan(w)] <- 0
@@ -26,12 +65,24 @@ world.synthesis <- function(world,normalize=FALSE) {
   return(Wave(floor(w),samp.rate=world$samp.rate,bit=16))
 }
 
+#' @title Shift F0 values of the speech signal
+#' @description `world.shift.f0` changes the F0 obtained by `world.analysis()`.
+#' @param world A list calculated by `world.analysis()`.
+#' @param rate A float value to be multiplied to the F0.
+#' @return A list in which the F0 values are changed.
+#' @export
 world.shift.f0 <- function(world,rate) {
   w <- world
   w$F0 <- w$F0*rate
   return(w)
 }
 
+#' @title Stretch/shring the tempo of the speech signal
+#' @description `world.stretch.time` changes the tempo of the speech without changing the F0.
+#' @param world A list calculated by `world.analysis()`.
+#' @param rate A float value for stretching
+#' @return A list in which the tempo is changed.
+#' @export
 world.stretch.time <- function(world,rate) {
   w <- list()
   len <- world$length
@@ -57,6 +108,12 @@ world.stretch.time <- function(world,rate) {
   return(w)
 }
 
+#' @title Stretch/shring the spectrum of the speech signal
+#' @description `world.stretch.spectrum` changes the spectrum of the speech without changing the F0.
+#' @param world A list calculated by `world.analysis()`.
+#' @param rate A float value for stretching
+#' @return A list in which the spectrum is changed.
+#' @export
 world.stretch.spectrum <- function(world,rate) {
   w <- list()
   len <- world$length
@@ -93,11 +150,4 @@ world.stretch.spectrum <- function(world,rate) {
   }
   w$class <- "World"
   return(w)
-}
-
-world.test <- function() {
-  library(tuneR)
-  w<-readWave("src/World/test/vaiueo2d.wav")
-  r <- world.analysis(w)
-  return(r)
 }

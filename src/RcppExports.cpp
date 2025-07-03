@@ -41,9 +41,9 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// worldF0Estimation
-NumericVector worldF0Estimation(NumericVector& wave, double frameshift, int fs, double f0floor, double allowed_range);
-RcppExport SEXP _WorldR_worldF0Estimation(SEXP waveSEXP, SEXP frameshiftSEXP, SEXP fsSEXP, SEXP f0floorSEXP, SEXP allowed_rangeSEXP) {
+// worldF0Estimation_dio
+NumericVector worldF0Estimation_dio(NumericVector& wave, double frameshift, int fs, double f0floor, double allowed_range);
+RcppExport SEXP _WorldR_worldF0Estimation_dio(SEXP waveSEXP, SEXP frameshiftSEXP, SEXP fsSEXP, SEXP f0floorSEXP, SEXP allowed_rangeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -52,7 +52,22 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type fs(fsSEXP);
     Rcpp::traits::input_parameter< double >::type f0floor(f0floorSEXP);
     Rcpp::traits::input_parameter< double >::type allowed_range(allowed_rangeSEXP);
-    rcpp_result_gen = Rcpp::wrap(worldF0Estimation(wave, frameshift, fs, f0floor, allowed_range));
+    rcpp_result_gen = Rcpp::wrap(worldF0Estimation_dio(wave, frameshift, fs, f0floor, allowed_range));
+    return rcpp_result_gen;
+END_RCPP
+}
+// worldF0Estimation_harvest
+NumericVector worldF0Estimation_harvest(NumericVector& wave, double frameshift, int fs, double f0floor, double f0ceil);
+RcppExport SEXP _WorldR_worldF0Estimation_harvest(SEXP waveSEXP, SEXP frameshiftSEXP, SEXP fsSEXP, SEXP f0floorSEXP, SEXP f0ceilSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector& >::type wave(waveSEXP);
+    Rcpp::traits::input_parameter< double >::type frameshift(frameshiftSEXP);
+    Rcpp::traits::input_parameter< int >::type fs(fsSEXP);
+    Rcpp::traits::input_parameter< double >::type f0floor(f0floorSEXP);
+    Rcpp::traits::input_parameter< double >::type f0ceil(f0ceilSEXP);
+    rcpp_result_gen = Rcpp::wrap(worldF0Estimation_harvest(wave, frameshift, fs, f0floor, f0ceil));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -71,7 +86,8 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_WorldR_worldAnalysis_", (DL_FUNC) &_WorldR_worldAnalysis_, 5},
     {"_WorldR_worldAnalysis_f0", (DL_FUNC) &_WorldR_worldAnalysis_f0, 6},
-    {"_WorldR_worldF0Estimation", (DL_FUNC) &_WorldR_worldF0Estimation, 5},
+    {"_WorldR_worldF0Estimation_dio", (DL_FUNC) &_WorldR_worldF0Estimation_dio, 5},
+    {"_WorldR_worldF0Estimation_harvest", (DL_FUNC) &_WorldR_worldF0Estimation_harvest, 5},
     {"_WorldR_worldSynthesis_", (DL_FUNC) &_WorldR_worldSynthesis_, 1},
     {NULL, NULL, 0}
 };
