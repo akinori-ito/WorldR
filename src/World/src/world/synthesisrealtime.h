@@ -1,12 +1,14 @@
 //-----------------------------------------------------------------------------
-// Copyright 2012-2016 Masanori Morise. All Rights Reserved.
-// Author: mmorise [at] yamanashi.ac.jp (Masanori Morise)
+// Copyright 2012 Masanori Morise
+// Author: mmorise [at] meiji.ac.jp (Masanori Morise)
+// Last update: 2021/02/15
 //-----------------------------------------------------------------------------
 #ifndef WORLD_SYNTHESISREALTIME_H_
 #define WORLD_SYNTHESISREALTIME_H_
 
 #include "world/common.h"
 #include "world/macrodefinitions.h"
+#include "world/matlabfunctions.h"
 
 WORLD_BEGIN_C_DECLS
 
@@ -28,6 +30,9 @@ typedef struct {
   double *buffer;
   int current_pointer;
   int i;
+
+  // For DC removal
+  double *dc_remover;
 
   //---------------------------------------------------------------------------
   // Followings are internal parameters.
@@ -63,6 +68,8 @@ typedef struct {
 
   double *impulse_response;
 
+  RandnState randn_state;
+
   // FFT
   MinimumPhaseAnalysis minimum_phase;
   InverseRealFFT inverse_real_fft;
@@ -72,12 +79,14 @@ typedef struct {
 //-----------------------------------------------------------------------------
 // InitializeSynthesizer() initializes the synthesizer based on basic
 // parameters.
+//
 // Input:
 //   fs                   : Sampling frequency
 //   frame_period         : Frame period (ms)
 //   fft_size             : FFT size
 //   buffer_size          : Buffer size (sample)
 //   number_of_pointers   : The number of elements in the ring buffer
+//
 // Output:
 //   synth                : Initialized synthesizer
 //-----------------------------------------------------------------------------
@@ -87,13 +96,16 @@ void InitializeSynthesizer(int fs, double frame_period, int fft_size,
 //-----------------------------------------------------------------------------
 // AddParameters() attempts to add speech parameters.
 // You can add several frames at the same time.
+//
 // Input:
 //   f0                   : F0 contour with length of f0_length
 //   f0_length            : This is associated with the number of frames
-//   spectrogram          : Spectrogram 
+//   spectrogram          : Spectrogram
 //   aperiodicity         : Aperiodicity
+//
 // Output:
 //   synth                : Synthesizer
+//
 // Return value:
 //   1: True, 0: False.
 //-----------------------------------------------------------------------------
@@ -120,7 +132,8 @@ void DestroySynthesizer(WorldSynthesizer *synth);
 //
 // Input:
 //   Synth            : Synthesizer (pointer)
-// Return value:
+//
+// Output:
 //   1: True, 0: False.
 //-----------------------------------------------------------------------------
 int IsLocked(WorldSynthesizer *synth);
@@ -128,9 +141,11 @@ int IsLocked(WorldSynthesizer *synth);
 //-----------------------------------------------------------------------------
 // Synthesis2() generates speech with length of synth->buffer_size sample.
 // The parameters are automatially updated, and memory is also released.
+//
 // Input:
 //   Synth            : Synthesizer (pointer)
-// Return value:
+//
+// Output:
 //   1: True, 0: False.
 //-----------------------------------------------------------------------------
 int Synthesis2(WorldSynthesizer *synth);

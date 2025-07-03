@@ -1,13 +1,18 @@
 //-----------------------------------------------------------------------------
-// Copyright 2012-2016 Masanori Morise. All Rights Reserved.
-// Author: mmorise [at] yamanashi.ac.jp (Masanori Morise)
+// Copyright 2012 Masanori Morise
+// Author: mmorise [at] meiji.ac.jp (Masanori Morise)
+// Last update: 2021/02/15
 //
 // Voice synthesis based on f0, spectrogram and aperiodicity.
 // This is an implementation for real-time applications.
 // Note: Several functions are same as those of synthesis.cpp.
 //
-// Caution: This is an implementation as a prototype. 
+// Caution: This is an implementation as a prototype.
 //          Specifications may change. There may be a bug.
+//
+// Caution: DC removal was re-implemented. However, this implementation is
+//          different from the implementation in synthesis.cpp. The sound
+//          quality is almost all the same in both implementations.
 //-----------------------------------------------------------------------------
 #include "world/synthesisrealtime.h"
 
@@ -21,14 +26,14 @@
 namespace {
 
 static void GetNoiseSpectrum(int noise_size, int fft_size,
-    const ForwardRealFFT *forward_real_fft) {
+    const ForwardRealFFT *forward_real_fft, RandnState* randn_state) {
   double average = 0.0;
   for (int i = 0; i < noise_size; ++i) {
-    forward_real_fft->waveform[i] = randn();
+    forward_real_fft->waveform[i] = randn(randn_state);
     average += forward_real_fft->waveform[i];
   }
 
-  average /= static_cast<double>(noise_size);
+  average /= noise_size;
   for (int i = 0; i < noise_size; ++i)
     forward_real_fft->waveform[i] -= average;
   for (int i = noise_size; i < fft_size; ++i)
@@ -43,26 +48,21 @@ static void GetAperiodicResponse(int noise_size, int fft_size,
     const double *spectrum, const double *aperiodic_ratio, double current_vuv,
     const ForwardRealFFT *forward_real_fft,
     const InverseRealFFT *inverse_real_fft,
-    const MinimumPhaseAnalysis *minimum_phase, double *aperiodic_response) {
-  GetNoiseSpectrum(noise_size, fft_size, forward_real_fft);
+    const MinimumPhaseAnalysis *minimum_phase, double *aperiodic_response,
+    RandnState* randn_state) {
+  GetNoiseSpectrum(noise_size, fft_size, forward_real_fft, randn_state);
 
-  if (current_vuv != 0.0) {
+  if (current_vuv != 0.0)
     for (int i = 0; i <= minimum_phase->fft_size / 2; ++i)
       minimum_phase->log_spectrum[i] =
         log(spectrum[i] * aperiodic_ratio[i] +
         world::kMySafeGuardMinimum) / 2.0;
-  } else {
+  else
     for (int i = 0; i <= minimum_phase->fft_size / 2; ++i)
       minimum_phase->log_spectrum[i] = log(spectrum[i]) / 2.0;
-  }
   GetMinimumPhaseSpectrum(minimum_phase);
 
   for (int i = 0; i <= fft_size / 2; ++i) {
-    inverse_real_fft->spectrum[i][0] =
-      minimum_phase->minimum_phase_spectrum[i][0];
-    inverse_real_fft->spectrum[i][1] =
-      minimum_phase->minimum_phase_spectrum[i][1];
-
     inverse_real_fft->spectrum[i][0] =
       minimum_phase->minimum_phase_spectrum[i][0] *
       forward_real_fft->spectrum[i][0] -
@@ -120,12 +120,11 @@ static void SearchPointer(int frame,  WorldSynthesizer *synth, int flag,
     double **front, double **next) {
   int pointer = synth->current_pointer2 % synth->number_of_pointers;
   int index = -1;
-  for (int i = 0; i < synth->f0_length[pointer]; ++i) {
+  for (int i = 0; i < synth->f0_length[pointer]; ++i)
     if (synth->f0_origin[pointer] + i == frame) {
       index = i;
       break;
     }
-  }
 
   double ***tmp_pointer =
     flag == 0 ? synth->spectrogram : synth->aperiodicity;
@@ -133,8 +132,21 @@ static void SearchPointer(int frame,  WorldSynthesizer *synth, int flag,
   *front = tmp_pointer[pointer][index];
   *next = index == synth->f0_length[pointer] - 1 ?
     tmp_pointer[(synth->current_pointer2 + 1) %
-    synth->number_of_pointers][0] :
-    tmp_pointer[pointer][index + 1];
+    synth->number_of_pointers][0] : tmp_pointer[pointer][index + 1];
+}
+
+//-----------------------------------------------------------------------------
+// RemoveDCComponent()
+//-----------------------------------------------------------------------------
+static void RemoveDCComponent(const double *periodic_response, int fft_size,
+    const double *dc_remover, double *new_periodic_response) {
+  double dc_component = 0.0;
+  for (int i = fft_size / 2; i < fft_size; ++i)
+    dc_component += periodic_response[i];
+  for (int i = 0; i < fft_size / 2; ++i)
+    new_periodic_response[i] = 0.0;
+  for (int i = fft_size / 2; i < fft_size; ++i)
+    new_periodic_response[i] -= dc_component * dc_remover[i - fft_size / 2];
 }
 
 //-----------------------------------------------------------------------------
@@ -143,8 +155,9 @@ static void SearchPointer(int frame,  WorldSynthesizer *synth, int flag,
 static void GetPeriodicResponse(int fft_size, const double *spectrum,
     const double *aperiodic_ratio, double current_vuv,
     const InverseRealFFT *inverse_real_fft,
-    const MinimumPhaseAnalysis *minimum_phase, double *periodic_response) {
-  if (current_vuv <= 0.5) {
+    const MinimumPhaseAnalysis *minimum_phase,
+    const double *dc_remover, double *periodic_response) {
+  if (current_vuv <= 0.5 || aperiodic_ratio[0] > 0.999) {
     for (int i = 0; i < fft_size; ++i) periodic_response[i] = 0.0;
     return;
   }
@@ -161,8 +174,11 @@ static void GetPeriodicResponse(int fft_size, const double *spectrum,
     inverse_real_fft->spectrum[i][1] =
       minimum_phase->minimum_phase_spectrum[i][1];
   }
+
   fft_execute(inverse_real_fft->inverse_fft);
   fftshift(inverse_real_fft->waveform, fft_size, periodic_response);
+  RemoveDCComponent(periodic_response, fft_size, dc_remover,
+      periodic_response);
 }
 
 static void GetSpectralEnvelope(double current_location,
@@ -178,14 +194,13 @@ static void GetSpectralEnvelope(double current_location,
   double *next = NULL;
   SearchPointer(current_frame_floor, synth, 0, &front, &next);
 
-  if (current_frame_floor == current_frame_ceil) {
+  if (current_frame_floor == current_frame_ceil)
     for (int i = 0; i <= synth->fft_size / 2; ++i)
-      spectral_envelope[i] = front[i];
-  } else {
+      spectral_envelope[i] = fabs(front[i]);
+  else
     for (int i = 0; i <= synth->fft_size / 2; ++i)
-    spectral_envelope[i] =
-      (1.0 - interpolation) * front[i] + interpolation * next[i];
-  }
+      spectral_envelope[i] =
+      (1.0 - interpolation) * fabs(front[i]) + interpolation * fabs(next[i]);
 }
 
 static void GetAperiodicRatio(double current_location,
@@ -202,24 +217,23 @@ static void GetAperiodicRatio(double current_location,
   double *next = NULL;
   SearchPointer(current_frame_floor, synth, 1, &front, &next);
 
-  if (current_frame_floor == current_frame_ceil) {
+  if (current_frame_floor == current_frame_ceil)
     for (int i = 0; i <= synth->fft_size / 2; ++i)
-      aperiodic_spectrum[i] = pow(front[i], 2.0);
-  } else {
+      aperiodic_spectrum[i] = pow(GetSafeAperiodicity(front[i]), 2.0);
+  else
     for (int i = 0; i <= synth->fft_size / 2; ++i)
       aperiodic_spectrum[i] =
-        pow((1.0 - interpolation) * front[i] +
-        interpolation * next[i], 2.0);
-  }
+        pow((1.0 - interpolation) * GetSafeAperiodicity(front[i]) +
+        interpolation * GetSafeAperiodicity(next[i]), 2.0);
 }
 
 static double GetCurrentVUV(int current_location, WorldSynthesizer *synth) {
   double current_vuv = 0.0;
   int pointer = synth->current_pointer % synth->number_of_pointers;
 
-  int start_sample =
+  int start_sample = MyMaxInt(0,
     static_cast<int>(ceil((synth->f0_origin[pointer] - 1) *
-    synth->frame_period * synth->fs));
+    synth->frame_period * synth->fs)));
 
   current_vuv =
     synth->interpolated_vuv[pointer][current_location - start_sample + 1];
@@ -245,19 +259,19 @@ static void GetOneFrameSegment(int noise_size, int current_location,
 
   // Synthesis of the periodic response
   GetPeriodicResponse(synth->fft_size, spectral_envelope, aperiodic_ratio,
-    current_vuv,
-    &synth->inverse_real_fft, &synth->minimum_phase, periodic_response);
+      current_vuv, &synth->inverse_real_fft, &synth->minimum_phase,
+      synth->dc_remover, periodic_response);
 
   // Synthesis of the aperiodic response
   GetAperiodicResponse(noise_size, synth->fft_size, spectral_envelope,
-    aperiodic_ratio, current_vuv,
-    &synth->forward_real_fft, &synth->inverse_real_fft, &synth->minimum_phase,
-    aperiodic_response);
+      aperiodic_ratio, current_vuv, &synth->forward_real_fft,
+      &synth->inverse_real_fft, &synth->minimum_phase, aperiodic_response,
+      &synth->randn_state);
 
   double sqrt_noise_size = sqrt(static_cast<double>(noise_size));
   for (int i = 0; i < synth->fft_size; ++i)
     synth->impulse_response[i] =
-      (periodic_response[i] * sqrt_noise_size + aperiodic_response[i]) /
+    (periodic_response[i] * sqrt_noise_size + aperiodic_response[i]) /
       synth->fft_size;
 
   delete[] spectral_envelope;
@@ -305,7 +319,7 @@ static void GetPulseLocationsForTimeBase(const double *interpolated_f0,
 
   int pointer = synth->head_pointer % synth->number_of_pointers;
   int number_of_pulses = 0;
-  for (int i = 0; i < number_of_samples - 1 + synth->handoff; ++i) {
+  for (int i = 0; i < number_of_samples - 1 + synth->handoff; ++i)
     if (wrap_phase_abs[i] > world::kPi) {
       synth->pulse_locations[pointer][number_of_pulses] =
         time_axis[i] - static_cast<double>(synth->handoff) / synth->fs;
@@ -314,7 +328,6 @@ static void GetPulseLocationsForTimeBase(const double *interpolated_f0,
             synth->fs);
       ++number_of_pulses;
     }
-  }
   synth->number_of_pulses[pointer] = number_of_pulses;
 
   if (number_of_pulses != 0)
@@ -326,7 +339,7 @@ static void GetPulseLocationsForTimeBase(const double *interpolated_f0,
 }
 
 static void GetTimeBase(const double *f0, int f0_length, int start_sample,
-  int number_of_samples, WorldSynthesizer *synth) {
+    int number_of_samples, WorldSynthesizer *synth) {
   double *coarse_time_axis = new double[f0_length + synth->handoff];
   double *coarse_f0 = new double[f0_length + synth->handoff];
   double *coarse_vuv = new double[f0_length + synth->handoff];
@@ -412,6 +425,20 @@ static int CheckSynthesizer(WorldSynthesizer *synth) {
   return 1;
 }
 
+static void GetDCRemover(int fft_size, double *dc_remover) {
+  double dc_component = 0.0;
+  for (int i = 0; i < fft_size / 2; ++i) {
+    dc_remover[i] = 0.5 -
+      0.5 * cos(2.0 * world::kPi * (i + 1.0) / (1.0 + fft_size));
+    dc_remover[fft_size - i - 1] = dc_remover[i];
+    dc_component += dc_remover[i] * 2.0;
+  }
+  for (int i = 0; i < fft_size / 2; ++i) {
+    dc_remover[i] /= dc_component;
+    dc_remover[fft_size - i - 1] = dc_remover[i];
+  }
+}
+
 }  // namespace
 
 void InitializeSynthesizer(int fs, double frame_period, int fft_size,
@@ -440,6 +467,7 @@ void InitializeSynthesizer(int fs, double frame_period, int fft_size,
 
   synth->buffer = new double[buffer_size * 2 + fft_size];
   synth->impulse_response = new double[synth->fft_size];
+  synth->dc_remover = new double[synth->fft_size / 2];
 
   // Initilize internal parameters
   RefreshSynthesizer(synth);
@@ -452,9 +480,8 @@ void InitializeSynthesizer(int fs, double frame_period, int fft_size,
 int AddParameters(double *f0, int f0_length, double **spectrogram,
     double **aperiodicity, WorldSynthesizer *synth) {
   if (synth->head_pointer - synth->current_pointer2 ==
-    synth->number_of_pointers) {
+    synth->number_of_pointers)
     return 0;  // Since the queue is full, we cannot add the parameters.
-  }
   int pointer = synth->head_pointer % synth->number_of_pointers;
   synth->f0_length[pointer] = f0_length;
   synth->f0_origin[pointer] = synth->cumulative_frame + 1;
@@ -510,6 +537,8 @@ void RefreshSynthesizer(WorldSynthesizer *synth) {
 
   for (int i = 0; i < synth->buffer_size * 2 + synth->fft_size; ++i)
     synth->buffer[i] = 0;
+  GetDCRemover(synth->fft_size / 2, synth->dc_remover);
+  randn_reseed(&synth->randn_state);
 }
 
 void DestroySynthesizer(WorldSynthesizer *synth) {
@@ -521,6 +550,7 @@ void DestroySynthesizer(WorldSynthesizer *synth) {
 
   delete[] synth->buffer;
   delete[] synth->impulse_response;
+  delete[] synth->dc_remover;
 
   delete[] synth->interpolated_vuv;
   delete[] synth->pulse_locations;
@@ -536,7 +566,7 @@ void DestroySynthesizer(WorldSynthesizer *synth) {
 int IsLocked(WorldSynthesizer *synth) {
   int judge = 0;
   if (synth->head_pointer - synth->current_pointer2 ==
-    synth->number_of_pointers)
+      synth->number_of_pointers)
     judge++;
   if (synth->synthesized_sample + synth->buffer_size >= synth->last_location)
     judge++;
@@ -558,9 +588,10 @@ int Synthesis2(WorldSynthesizer *synth) {
     noise_size = tmp - current_location;
 
     GetOneFrameSegment(noise_size, current_location, synth);
-    offset = current_location - synth->synthesized_sample;
-    for (int i = 0; i < synth->fft_size; ++i) {
-      index = MyMaxInt(0, i + offset - synth->fft_size / 2 + 1);
+    offset =
+      current_location - synth->synthesized_sample - synth->fft_size / 2 + 1;
+    for (int i = MyMaxInt(0, -offset); i < synth->fft_size; ++i) {
+      index = i + offset;
       synth->buffer[index] += synth->impulse_response[i];
     }
     current_location = tmp;

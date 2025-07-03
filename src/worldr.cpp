@@ -16,7 +16,7 @@ List spectral_analysis(double *x, int x_length,
 {
   // Spectral envelope estimation
   CheapTrickOption c_option = {0};
-  InitializeCheapTrickOption(&c_option);
+  InitializeCheapTrickOption(fs,&c_option);
   c_option.q1 = -0.15;
   c_option.f0_floor = f0floor;
 

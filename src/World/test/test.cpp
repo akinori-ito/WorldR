@@ -1,26 +1,15 @@
 //-----------------------------------------------------------------------------
-// Copyright 2012-2016 Masanori Morise. All Rights Reserved.
-// Author: mmorise [at] yamanashi.ac.jp (Masanori Morise)
+// Copyright 2012 Masanori Morise
+// Author: mmorise [at] meiji.ac.jp (Masanori Morise)
+// Last update: 2021/02/15
 //
-// Test program for WORLD 0.1.2 (2012/08/19)
-// Test program for WORLD 0.1.3 (2013/07/26)
-// Test program for WORLD 0.1.4 (2014/04/29)
-// Test program for WORLD 0.1.4_3 (2015/03/07)
-// Test program for WORLD 0.2.0 (2015/05/29)
-// Test program for WORLD 0.2.0_1 (2015/05/31)
-// Test program for WORLD 0.2.0_2 (2015/06/06)
-// Test program for WORLD 0.2.0_3 (2015/07/28)
-// Test program for WORLD 0.2.0_4 (2015/11/15)
-// Test program for WORLD in GitHub (2015/11/16-)
-// Latest update: 2016/04/19
-
 // test.exe input.wav outout.wav f0 spec
 // input.wav  : Input file
+//
 // output.wav : Output file
 // f0         : F0 scaling (a positive number)
 // spec       : Formant scaling (a positive number)
 //
-// 2016/04/19:
 // Note: This version output three speech synthesized by different algorithms.
 //       When the filename is "output.wav", "01output.wav", "02output.wav" and
 //       "03output.wav" are generated. They are almost all the same.
@@ -37,7 +26,7 @@
 #pragma comment(lib, "winmm.lib")
 #pragma warning(disable : 4996)
 #endif
-#if (defined (__linux__) || defined(__CYGWIN__) || defined(__APPLE__))
+#if (defined (__linux__) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__APPLE__))
 #include <stdint.h>
 #include <sys/time.h>
 #endif
@@ -50,13 +39,14 @@
 // To compile the program, the option "-I $(SolutionDir)..\src" was set.
 #include "world/d4c.h"
 #include "world/dio.h"
+#include "world/harvest.h"
 #include "world/matlabfunctions.h"
 #include "world/cheaptrick.h"
 #include "world/stonemask.h"
 #include "world/synthesis.h"
 #include "world/synthesisrealtime.h"
 
-#if (defined (__linux__) || defined(__CYGWIN__) || defined(__APPLE__))
+#if (defined (__linux__) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__APPLE__))
 // Linux porting section: implement timeGetTime() by gettimeofday(),
 #ifndef DWORD
 #define DWORD uint32_t
@@ -96,14 +86,12 @@ void DisplayInformation(int fs, int nbit, int x_length) {
   printf("Length %f [sec]\n", static_cast<double>(x_length) / fs);
 }
 
-void F0Estimation(double *x, int x_length, WorldParameters *world_parameters) {
+void F0EstimationDio(double *x, int x_length,
+    WorldParameters *world_parameters) {
   DioOption option = {0};
   InitializeDioOption(&option);
 
   // Modification of the option
-  // When you You must set the same value.
-  // If a different value is used, you may suffer a fatal error because of a
-  // illegal memory access.
   option.frame_period = world_parameters->frame_period;
 
   // Valuable option.speed represents the ratio for downsampling.
@@ -111,10 +99,8 @@ void F0Estimation(double *x, int x_length, WorldParameters *world_parameters) {
   // If you want to obtain the accurate result, speed should be set to 1.
   option.speed = 1;
 
-  // You should not set option.f0_floor to under world::kFloorF0.
-  // If you want to analyze such low F0 speech, please change world::kFloorF0.
-  // Processing speed may sacrify, provided that the FFT length changes.
-  option.f0_floor = 71.0;
+  // You can set the f0_floor below world::kFloorF0.
+  option.f0_floor = 40.0;
 
   // You can give a positive real number as the threshold.
   // Most strict value is 0, but almost all results are counted as unvoiced.
@@ -133,60 +119,71 @@ void F0Estimation(double *x, int x_length, WorldParameters *world_parameters) {
   Dio(x, x_length, world_parameters->fs, &option, world_parameters->time_axis,
       world_parameters->f0);
   printf("DIO: %d [msec]\n", timeGetTime() - elapsed_time);
-  {
-      FILE *out = fopen("zF0-0.txt","w");
-      for (int i = 0; i < world_parameters->f0_length; i++)
-        fprintf(out,"%g\n",world_parameters->f0[i]);
-      fclose(out);
-  }
 
   // StoneMask is carried out to improve the estimation performance.
   elapsed_time = timeGetTime();
   StoneMask(x, x_length, world_parameters->fs, world_parameters->time_axis,
       world_parameters->f0, world_parameters->f0_length, refined_f0);
   printf("StoneMask: %d [msec]\n", timeGetTime() - elapsed_time);
-  {
-      FILE *out = fopen("zF0-1.txt","w");
-      for (int i = 0; i < world_parameters->f0_length; i++)
-        fprintf(out,"%g\n",refined_f0[i]);
-      fclose(out);
-  }
 
   for (int i = 0; i < world_parameters->f0_length; ++i)
     world_parameters->f0[i] = refined_f0[i];
 
   delete[] refined_f0;
-  return;
+}
+
+void F0EstimationHarvest(double *x, int x_length,
+    WorldParameters *world_parameters) {
+  HarvestOption option = { 0 };
+  InitializeHarvestOption(&option);
+
+  // You can change the frame period.
+  // But the estimation is carried out with 1-ms frame shift.
+  option.frame_period = world_parameters->frame_period;
+
+  // You can set the f0_floor below world::kFloorF0.
+  option.f0_floor = 40.0;
+
+  // Parameters setting and memory allocation.
+  world_parameters->f0_length = GetSamplesForHarvest(world_parameters->fs,
+    x_length, world_parameters->frame_period);
+  world_parameters->f0 = new double[world_parameters->f0_length];
+  world_parameters->time_axis = new double[world_parameters->f0_length];
+
+  printf("\nAnalysis\n");
+  DWORD elapsed_time = timeGetTime();
+  Harvest(x, x_length, world_parameters->fs, &option,
+      world_parameters->time_axis, world_parameters->f0);
+  printf("Harvest: %d [msec]\n", timeGetTime() - elapsed_time);
 }
 
 void SpectralEnvelopeEstimation(double *x, int x_length,
     WorldParameters *world_parameters) {
   CheapTrickOption option = {0};
-  InitializeCheapTrickOption(&option);
+  // Note (2017/01/02): fs is added as an argument.
+  InitializeCheapTrickOption(world_parameters->fs, &option);
 
-  // This value may be better one for HMM speech synthesis.
-  // Default value is -0.09.
-  option.q1 = -0.15;
+  // Default value was modified to -0.15.
+  // option.q1 = -0.15;
 
-  // Important notice (2016/02/02)
-  // You can control a parameter used for the lowest F0 in speech.
-  // You must not set the f0_floor to 0.
-  // It will cause a fatal error because fft_size indicates the infinity.
-  // You must not change the f0_floor after memory allocation.
-  // You should check the fft_size before excucing the analysis/synthesis.
-  // The default value (71.0) is strongly recommended.
-  // On the other hand, setting the lowest F0 of speech is a good choice
-  // to reduce the fft_size.
+  // Important notice (2017/01/02)
+  // You can set the fft_size.
+  // Default is GetFFTSizeForCheapTrick(world_parameters->fs, &option);
+  // When fft_size changes from default value,
+  // a replaced f0_floor will be used in CheapTrick().
+  // The lowest F0 that WORLD can work as expected is determined
+  // by the following : 3.0 * fs / fft_size.
   option.f0_floor = 71.0;
+  option.fft_size = GetFFTSizeForCheapTrick(world_parameters->fs, &option);
+  // We can directly set fft_size.
+//   option.fft_size = 1024;
 
   // Parameters setting and memory allocation.
-  world_parameters->fft_size =
-    GetFFTSizeForCheapTrick(world_parameters->fs, &option);
+  world_parameters->fft_size = option.fft_size;
   world_parameters->spectrogram = new double *[world_parameters->f0_length];
-  for (int i = 0; i < world_parameters->f0_length; ++i) {
+  for (int i = 0; i < world_parameters->f0_length; ++i)
     world_parameters->spectrogram[i] =
       new double[world_parameters->fft_size / 2 + 1];
-  }
 
   DWORD elapsed_time = timeGetTime();
   CheapTrick(x, x_length, world_parameters->fs, world_parameters->time_axis,
@@ -200,16 +197,21 @@ void AperiodicityEstimation(double *x, int x_length,
   D4COption option = {0};
   InitializeD4COption(&option);
 
+  // Comment was modified because it was confusing (2017/12/10).
+  // It is used to determine the aperiodicity in whole frequency band.
+  // D4C identifies whether the frame is voiced segment even if it had an F0.
+  // If the estimated value falls below the threshold,
+  // the aperiodicity in whole frequency band will set to 1.0.
+  // If you want to use the conventional D4C, please set the threshold to 0.0.
+  option.threshold = 0.85;
+
   // Parameters setting and memory allocation.
   world_parameters->aperiodicity = new double *[world_parameters->f0_length];
-  for (int i = 0; i < world_parameters->f0_length; ++i) {
+  for (int i = 0; i < world_parameters->f0_length; ++i)
     world_parameters->aperiodicity[i] =
       new double[world_parameters->fft_size / 2 + 1];
-  }
 
   DWORD elapsed_time = timeGetTime();
-  // option is not implemented in this version. This is for future update.
-  // We can use "NULL" as the argument.
   D4C(x, x_length, world_parameters->fs, world_parameters->time_axis,
       world_parameters->f0, world_parameters->f0_length,
       world_parameters->fft_size, &option, world_parameters->aperiodicity);
@@ -269,7 +271,7 @@ void WaveformSynthesis(WorldParameters *world_parameters, int fs,
 }
 
 void WaveformSynthesis2(WorldParameters *world_parameters, int fs,
-  int y_length, double *y) {
+    int y_length, double *y) {
   DWORD elapsed_time;
   printf("\nSynthesis 2 (All frames are added at the same time)\n");
   elapsed_time = timeGetTime();
@@ -287,9 +289,8 @@ void WaveformSynthesis2(WorldParameters *world_parameters, int fs,
   int index;
   for (int i = 0; Synthesis2(&synthesizer) != 0; ++i) {
     index = i * buffer_size;
-    for (int j = 0; j < buffer_size; ++j) {
+    for (int j = 0; j < buffer_size; ++j)
       y[j + index] = synthesizer.buffer[j];
-    }
   }
 
   printf("WORLD: %d [msec]\n", timeGetTime() - elapsed_time);
@@ -297,7 +298,7 @@ void WaveformSynthesis2(WorldParameters *world_parameters, int fs,
 }
 
 void WaveformSynthesis3(WorldParameters *world_parameters, int fs,
-  int y_length, double *y) {
+    int y_length, double *y) {
   DWORD elapsed_time;
   // Synthesis by the aperiodicity
   printf("\nSynthesis 3 (Ring buffer is efficiently used.)\n");
@@ -306,7 +307,7 @@ void WaveformSynthesis3(WorldParameters *world_parameters, int fs,
   WorldSynthesizer synthesizer = { 0 };
   int buffer_size = 64;
   InitializeSynthesizer(world_parameters->fs, world_parameters->frame_period,
-    world_parameters->fft_size, buffer_size, 20, &synthesizer);
+      world_parameters->fft_size, buffer_size, 100, &synthesizer);
 
   int offset = 0;
   int index = 0;
@@ -364,15 +365,12 @@ int main(int argc, char *argv[]) {
     return -2;
   }
 
-  // 2016/01/28: Important modification.
   // Memory allocation is carried out in advanse.
   // This is for compatibility with C language.
   int x_length = GetAudioLength(argv[1]);
   if (x_length <= 0) {
-    if (x_length == 0)
-      printf("error: File not found.\n");
-    else
-      printf("error: The file is not .wav format.\n");
+    if (x_length == 0) printf("error: File not found.\n");
+    else printf("error: The file is not .wav format.\n");
     return -1;
   }
   double *x = new double[x_length];
@@ -384,19 +382,18 @@ int main(int argc, char *argv[]) {
   //---------------------------------------------------------------------------
   // Analysis part
   //---------------------------------------------------------------------------
-  // 2016/02/02
-  // A new struct is introduced to implement safe program.
   WorldParameters world_parameters = { 0 };
   // You must set fs and frame_period before analysis/synthesis.
   world_parameters.fs = fs;
-
   // 5.0 ms is the default value.
-  // Generally, the inverse of the lowest F0 of speech is the best.
-  // However, the more elapsed time is required.
   world_parameters.frame_period = 5.0;
 
   // F0 estimation
-  F0Estimation(x, x_length, &world_parameters);
+  // DIO
+  // F0EstimationDio(x, x_length, &world_parameters);
+
+  // Harvest
+  F0EstimationHarvest(x, x_length, &world_parameters);
 
   // Spectral envelope estimation
   SpectralEnvelopeEstimation(x, x_length, &world_parameters);
@@ -406,11 +403,11 @@ int main(int argc, char *argv[]) {
 
   // Note that F0 must not be changed until all parameters are estimated.
   ParameterModification(argc, argv, fs, world_parameters.f0_length,
-    world_parameters.fft_size, world_parameters.f0,
-    world_parameters.spectrogram);
+      world_parameters.fft_size, world_parameters.f0,
+      world_parameters.spectrogram);
 
   //---------------------------------------------------------------------------
-  // Synthesis part (2016/04/19)
+  // Synthesis part
   // There are three samples in speech synthesis
   // 1: Conventional synthesis
   // 2: Example of real-time synthesis
@@ -421,15 +418,6 @@ int main(int argc, char *argv[]) {
   int y_length = static_cast<int>((world_parameters.f0_length - 1) *
     world_parameters.frame_period / 1000.0 * fs) + 1;
   double *y = new double[y_length];
-  
-  FILE *f = fopen("zzz.txt","w");
-  for (int i = 0; i < world_parameters.f0_length; i++) {
-    int winsize = world_parameters.fft_size/2+1;
-    for (int j = 0; j < winsize; j++)
-        fprintf(f,"%g ",log(world_parameters.spectrogram[i][j]));
-    fprintf(f,"\n");
-  }
-fclose(f);
 
   // Synthesis 1 (conventional synthesis)
   for (int i = 0; i < y_length; ++i) y[i] = 0.0;

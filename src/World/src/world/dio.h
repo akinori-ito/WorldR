@@ -1,6 +1,7 @@
 //-----------------------------------------------------------------------------
-// Copyright 2012-2016 Masanori Morise. All Rights Reserved.
-// Author: mmorise [at] yamanashi.ac.jp (Masanori Morise)
+// Copyright 2012 Masanori Morise
+// Author: mmorise [at] meiji.ac.jp (Masanori Morise)
+// Last update: 2021/02/15
 //-----------------------------------------------------------------------------
 #ifndef WORLD_DIO_H_
 #define WORLD_DIO_H_
@@ -23,21 +24,24 @@ typedef struct {
 
 //-----------------------------------------------------------------------------
 // DIO
+//
 // Input:
-//   x          : Input signal
-//   x_length   : Length of x
-//   fs         : Sampling frequency
-//   option     : Struct to order the parameter for DIO
+//   x                    : Input signal
+//   x_length             : Length of x
+//   fs                   : Sampling frequency
+//   option               : Struct to order the parameter for DIO
+//
 // Output:
-//   time_axis  : Temporal positions.
-//   f0         : F0 contour.
+//   temporal_positions   : Temporal positions.
+//   f0                   : F0 contour.
 //-----------------------------------------------------------------------------
 void Dio(const double *x, int x_length, int fs, const DioOption *option,
-  double *time_axis, double *f0);
+  double *temporal_positions, double *f0);
 
 //-----------------------------------------------------------------------------
 // InitializeDioOption allocates the memory to the struct and sets the
 // default parameters.
+//
 // Output:
 //   option   : Struct for the optional parameter.
 //-----------------------------------------------------------------------------
@@ -45,10 +49,12 @@ void InitializeDioOption(DioOption *option);
 
 //-----------------------------------------------------------------------------
 // GetSamplesForDIO() calculates the number of samples required for Dio().
+//
 // Input:
 //   fs             : Sampling frequency [Hz]
 //   x_length       : Length of the input signal [Sample].
 //   frame_period   : Frame shift [msec]
+//
 // Output:
 //   The number of samples required to store the results of Dio()
 //-----------------------------------------------------------------------------

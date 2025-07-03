@@ -1,6 +1,7 @@
 //-----------------------------------------------------------------------------
-// Copyright 2012-2016 Masanori Morise. All Rights Reserved.
-// Author: mmorise [at] yamanashi.ac.jp (Masanori Morise)
+// Copyright 2012 Masanori Morise
+// Author: mmorise [at] meiji.ac.jp (Masanori Morise)
+// Last update: 2021/02/15
 //
 // Matlab functions implemented for WORLD
 // Since these functions are implemented as the same function of Matlab,
@@ -14,6 +15,7 @@
 #include "world/matlabfunctions.h"
 
 #include <math.h>
+#include <stdint.h>
 
 #include "world/constantnumbers.h"
 
@@ -155,27 +157,21 @@ void histc(const double *x, int x_length, const double *edges,
 void interp1(const double *x, const double *y, int x_length, const double *xi,
     int xi_length, double *yi) {
   double *h = new double[x_length - 1];
-  double *p = new double[xi_length];
-  double *s = new double[xi_length];
   int *k = new int[xi_length];
 
   for (int i = 0; i < x_length - 1; ++i) h[i] = x[i + 1] - x[i];
   for (int i = 0; i < xi_length; ++i) {
-    p[i] = i;
     k[i] = 0;
   }
 
   histc(x, x_length, xi, xi_length, k);
 
-  for (int i = 0; i < xi_length; ++i)
-    s[i] = (xi[i] - x[k[i] - 1]) / h[k[i] - 1];
-
-  for (int i = 0; i < xi_length; ++i)
-    yi[i] = y[k[i] - 1] + s[i] * (y[k[i]] - y[k[i] - 1]);
-
+  for (int i = 0; i < xi_length; ++i) {
+    double s = (xi[i] - x[k[i] - 1]) / h[k[i] - 1];
+    yi[i] = y[k[i] - 1] + s * (y[k[i]] - y[k[i] - 1]);
+  }
+  
   delete[] k;
-  delete[] s;
-  delete[] p;
   delete[] h;
 }
 
@@ -196,7 +192,7 @@ void decimate(const double *x, int x_length, int r, double *y) {
   for (int i = 0; i < 2 * kNFact + x_length; ++i)
     tmp1[i] = tmp2[2 * kNFact + x_length - i - 1];
 
-  int nout = x_length / r + 1;
+  int nout = (x_length - 1) / r + 1;
   int nbeg = r - r * nout + x_length;
 
   int count = 0;
@@ -238,25 +234,31 @@ void interp1Q(double x, double shift, const double *y, int x_length,
   delete[] delta_y;
 }
 
-double randn(void) {
-  static unsigned int x = 123456789;
-  static unsigned int y = 362436069;
-  static unsigned int z = 521288629;
-  static unsigned int w = 88675123;
-  unsigned int t;
-  t = x ^ (x << 11);
-  x = y;
-  y = z;
-  z = w;
+void randn_reseed(RandnState *state) {
+    state->g_randn_x = 123456789;
+    state->g_randn_y = 362436069;
+    state->g_randn_z = 521288629;
+    state->g_randn_w = 88675123;
+}
 
-  unsigned int tmp = 0;
-  for (int i = 0; i < 12; ++i) {
-    t = x ^ (x << 11);
-    x = y;
-    y = z;
-    z = w;
-    w = (w ^ (w >> 19)) ^ (t ^ (t >> 8));
-    tmp += w >> 4;
+double randn(RandnState *state) {
+  uint32_t t;
+  t = state->g_randn_x ^ (state->g_randn_x << 11);
+  state->g_randn_x = state->g_randn_y;
+  state->g_randn_y = state->g_randn_z;
+  state->g_randn_z = state->g_randn_w;
+  state->g_randn_w
+    = (state->g_randn_w ^ (state->g_randn_w >> 19)) ^ (t ^ (t >> 8));
+
+  uint32_t tmp = state->g_randn_w >> 4;
+  for (int i = 0; i < 11; ++i) {
+    t = state->g_randn_x ^ (state->g_randn_x << 11);
+    state->g_randn_x = state->g_randn_y;
+    state->g_randn_y = state->g_randn_z;
+    state->g_randn_z = state->g_randn_w;
+    state->g_randn_w
+      = (state->g_randn_w ^ (state->g_randn_w >> 19)) ^ (t ^ (t >> 8));
+    tmp += state->g_randn_w >> 4;
   }
   return tmp / 268435456.0 - 6.0;
 }
