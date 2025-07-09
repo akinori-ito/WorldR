@@ -1,4 +1,8 @@
-#library(tuneR)
+#' @import Rcpp
+#' @import tuneR
+#' @import signal
+#' @useDynLib WorldR, .registration=TRUE
+#' @importFrom Rcpp sourceCpp
 
 #' @title Analyze speech signal using World
 #' @description \code{world.analysis()} analyzes the input speech signal into F0, spectrum and aperiodicity.
@@ -42,7 +46,7 @@ world.f0 <- function(w,frameshift=5.0,f0floor=71.0,f0ceil=800.0,allowed_range=0.
   if (method == "dio") {
     return(worldF0Estimation_dio(w@left,frameshift,w@samp.rate,f0floor,allowed_range))
   } else if (method == "harvest") {
-    return(worldF0Estimation_dio(w@left,frameshift,w@samp.rate,f0floor,f0ceil))
+    return(worldF0Estimation_harvest(w@left,frameshift,w@samp.rate,f0floor,f0ceil))
   } else {
     stop("world.f0: unknown method ",method)
   }
